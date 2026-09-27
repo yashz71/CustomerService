@@ -1,0 +1,137 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.so
+
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+
+# =========================
+# Virtual environments
+# =========================
+
+.venv/
+venv/
+env/
+ENV/
+
+
+# =========================
+# Environment variables
+# =========================
+
+.env
+.env.*
+!.env.example
+
+
+# =========================
+# Testing / Coverage
+# =========================
+
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.pyre/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+
+# =========================
+# Linters / Formatters
+# =========================
+
+.ruff_cache/
+.black/
+.isort/
+
+
+# =========================
+# IDEs
+# =========================
+
+.vscode/
+.idea/
+
+*.swp
+*.swo
+*~
+
+
+# =========================
+# OS files
+# =========================
+
+.DS_Store
+Thumbs.db
+
+
+# =========================
+# Logs
+# =========================
+
+*.log
+logs/
+
+
+# =========================
+# Local database / data
+# =========================
+
+*.sqlite
+*.sqlite3
+*.db
+
+data/
+storage/
+
+
+# =========================
+# FastAPI / Uvicorn
+# =========================
+
+.pytest_cache/
+
+# =========================
+# Docker
+# =========================
+
+docker-compose.override.yml
+
+
+# =========================
+# Secrets / certificates
+# =========================
+
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
