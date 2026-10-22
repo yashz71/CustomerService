@@ -6,6 +6,12 @@ from fastapi.responses import PlainTextResponse
 
 from config import settings
 from services.whatsapp import whatsapp_service
+from pydantic import BaseModel
+
+
+class SendMessageRequest(BaseModel):
+    to: str
+    message: str
 
 
 router = APIRouter(
@@ -158,3 +164,28 @@ async def process_webhook(
                 await whatsapp_service.handle_message_status(
                     status
                 )
+
+@router.post("/send")
+async def send_message(
+    request: SendMessageRequest,
+):
+    """
+    Send a text message through the WhatsApp Cloud API.
+    """
+
+    try:
+        response = await whatsapp_service.send_text_message(
+            to=request.to,
+            message=request.message,
+        )
+
+        return {
+            "status": "sent",
+            "response": response,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=str(exc),
+        )

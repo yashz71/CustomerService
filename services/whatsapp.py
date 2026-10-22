@@ -63,23 +63,19 @@ class WhatsAppService:
         return response.json()
 
     async def handle_received_message(
-        self,
-        message: dict,
+            self,
+            message: dict,
     ) -> None:
-        """
-        Business logic for an incoming WhatsApp message.
+        sender = message.get("from")
+        message_id = message.get("id")
+        message_type = message.get("type")
 
-        TODO:
-            - Extract the sender
-            - Extract message type
-            - Extract message content
-            - Pass message to your agent
-            - Generate a response
-            - Call send_text_message()
-        """
+        if message_type == "text":
+            text = message.get("text", {}).get("body")
 
-        pass
-
+            print(f"Sender: {sender}")
+            print(f"Message ID: {message_id}")
+            print(f"Message: {text}")
     async def handle_message_status(
         self,
         status: dict,
