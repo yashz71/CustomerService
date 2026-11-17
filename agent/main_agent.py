@@ -16,6 +16,11 @@ server = AgentServer()
 class RobinAssistant(Agent):
     def __init__(self, graph):
         super().__init__(
+            instructions=(
+                "You are Robin, a helpful AI voice assistant. "
+                "Answer the user's questions clearly and naturally. "
+                "Use the available tools when necessary."
+            ),
             llm=langchain.LLMAdapter(
                 graph=graph,
                 stream_mode="messages",
@@ -40,8 +45,9 @@ async def robin_voice_agent(ctx: JobContext):
                 language="en",
             ),
             tts=inference.TTS(
-                model="fishaudio/s2.1-pro",
-                voice="fa4c9eb3dccc4806b382b40d61c6b10a",
+                 model="inworld/inworld-tts-2",
+                 voice="Ashley",
+                 language="en",
             ),
         )
 

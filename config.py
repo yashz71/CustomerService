@@ -7,8 +7,13 @@ class Settings(BaseSettings):
     whatsapp_verify_token: str
 
     meta_app_secret: str
-
-    whatsapp_api_version: str = "v25.0"
+    BASE_URL: str
+    MCP_SERVER_URL_ROBIN: str
+    API_KEY: str
+    whatsapp_api_version: str = "v27.0"
+    livekit_url: str
+    livekit_api_key: str
+    livekit_api_secret: str
 
     model_config = SettingsConfigDict(
         env_file=".env",

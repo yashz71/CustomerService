@@ -10,8 +10,3 @@ base_url = os.getenv("BASE_URL")
 api_key = os.getenv("API_KEY")
 mcp_server_url_robin = os.getenv("MCP_SERVER_URL_ROBIN")
 
-NEON_DATABASE_URL = os.getenv("NEON_DATABASE_URL")
-
-# Fail-safe: Stop the server immediately if critical keys are missing
-if not NEON_DATABASE_URL:
-    raise ValueError("Critical configuration is missing! Check your .env file.")
