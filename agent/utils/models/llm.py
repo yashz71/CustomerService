@@ -1,8 +1,7 @@
 from langchain_openai import ChatOpenAI
-from agent.utils.config import base_url, api_key
-
+from utils.config import base_url, api_key
 model = ChatOpenAI(
-    model="gpt-4o-nano",
+    model="gpt-4.1-nano",
     base_url=base_url,
     api_key=api_key,
     temperature=0,
@@ -11,3 +10,4 @@ model = ChatOpenAI(
     timeout=None,
     max_retries=2,
 )
+
