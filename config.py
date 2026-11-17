@@ -10,10 +10,11 @@ class Settings(BaseSettings):
     BASE_URL: str
     MCP_SERVER_URL_ROBIN: str
     API_KEY: str
-    whatsapp_api_version: str = "v27.0"
+    whatsapp_api_version: str = "26.0"
     livekit_url: str
     livekit_api_key: str
     livekit_api_secret: str
+    livekit_agent_name: str = "robin"
 
     model_config = SettingsConfigDict(
         env_file=".env",

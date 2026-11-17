@@ -1,16 +1,16 @@
 
 import logging
 
+from dotenv import load_dotenv
+
+# Load environment variables before importing settings.
+load_dotenv(override=True)
+
 from livekit import api
 from livekit.protocol.agent_dispatch import RoomAgentDispatch
 from livekit.protocol.rtc import SessionDescription
 
 from config import settings
-from dotenv import load_dotenv
-
-# This loads the variables from .env into the standard os.environ dictionary
-load_dotenv(override=True)
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,13 @@ class LiveKitWhatsAppService:
     async def initialize(self):
         if self.client is None:
             self.client = api.LiveKitAPI()
+            logger.info("LiveKit Cloud API client initialized")
 
     async def close(self):
         if self.client is not None:
             await self.client.aclose()
             self.client = None
-
+            logger.info("LiveKit Cloud API client closed")
 
     def _agent_dispatch(self):
         return [
@@ -47,7 +48,10 @@ class LiveKitWhatsAppService:
             whatsapp_api_key=settings.whatsapp_access_token,
             whatsapp_cloud_api_version=settings.whatsapp_api_version,
             whatsapp_call_id=call_id,
-            sdp=sdp,
+            sdp=SessionDescription(
+                type="offer",
+                sdp=sdp,
+            ),
             agents=self._agent_dispatch(),
             wait_until_answered=True,
         )
@@ -99,7 +103,6 @@ class LiveKitWhatsAppService:
                 type="answer",
                 sdp=sdp,
             ),
-            wait_until_answered=True,
         )
 
         response = await self.client.connector.connect_whatsapp_call(
@@ -107,7 +110,7 @@ class LiveKitWhatsAppService:
         )
 
         logger.info(
-            "Outgoing WhatsApp call connected: %s",
+            "Connected outgoing WhatsApp call: %s",
             call_id,
         )
 
@@ -148,9 +151,6 @@ class LiveKitWhatsAppService:
         )
 
         return response
-
-    async def close(self):
-        await self.client.aclose()
 
 
 livekit_whatsapp = LiveKitWhatsAppService()

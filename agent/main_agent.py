@@ -46,7 +46,7 @@ async def robin_voice_agent(ctx: JobContext):
             ),
             tts=inference.TTS(
                  model="inworld/inworld-tts-2",
-                 voice="Ashley",
+                 voice="Olivia",
                  language="en",
             ),
         )
