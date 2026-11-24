@@ -2,13 +2,224 @@
 import logging
 
 import httpx
+from typing import Any
 
+from langchain_core.messages import HumanMessage
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class WhatsAppService:
+
+    @staticmethod
+    def fresh_turn_state(user_message: HumanMessage) -> dict:
+        """
+        Initialize the state expected by the existing Robin workflow.
+        """
+        return {
+            "messages": [user_message],
+            "plan": None,
+            "parallel": True,
+            "reasoning": None,
+            "supervisor_instruction": None,
+            "accounting_answer": None,
+            "tax_answer": None,
+            "general_answer": None,
+            "download_url": None,
+        }
+
+    @staticmethod
+    def extract_agent_response(result: dict) -> str:
+        """
+        Extract the final response from the LangGraph result.
+        Supports both string and structured message content.
+        """
+        messages = result.get("messages", [])
+
+        if not messages:
+            return ""
+
+        final_message = messages[-1]
+        answer = getattr(final_message, "content", "")
+
+        if isinstance(answer, str):
+            return answer.strip()
+
+        if isinstance(answer, list):
+            text_parts = [
+                block["text"]
+                for block in answer
+                if isinstance(block, dict)
+                and block.get("type") == "text"
+                and block.get("text")
+            ]
+
+            return "\n".join(text_parts).strip()
+
+        return str(answer).strip() if answer else ""
+
+    async def run_agent(
+        self,
+        agent_app: Any,
+        sender_id: str,
+        message_text: str,
+    ) -> str:
+        """
+        Invoke the existing Robin LangGraph application.
+
+        Each WhatsApp user gets a persistent LangGraph thread.
+        """
+        if agent_app is None:
+            raise RuntimeError("LangGraph agent is not initialized.")
+
+        thread_id = f"whatsapp:{sender_id}"
+
+        user_message = HumanMessage(
+            content=message_text.strip()
+        )
+
+        input_state = self.fresh_turn_state(user_message)
+
+        config = {
+            "configurable": {
+                "thread_id": thread_id,
+            }
+        }
+
+        logger.info(
+            "Invoking Robin agent: sender=%s thread=%s",
+            sender_id,
+            thread_id,
+        )
+
+        result = await agent_app.ainvoke(
+            input_state,
+            config=config,
+        )
+
+        answer = self.extract_agent_response(result)
+
+        if not answer:
+            logger.warning(
+                "Robin agent returned an empty response: sender=%s",
+                sender_id,
+            )
+            return (
+                "I couldn't generate a response. "
+                "Please try again."
+            )
+
+        logger.info(
+            "Robin agent response generated: sender=%s length=%s",
+            sender_id,
+            len(answer),
+        )
+
+        return answer
+
+    async def handle_received_message(
+        self,
+        message: dict,
+        agent_app: Any,
+    ) -> None:
+        """
+        Process an incoming WhatsApp text message,
+        invoke Robin, and send the response back.
+        """
+        message_type = message.get("type")
+        sender_id = message.get("from")
+        message_id = message.get("id")
+
+        if not sender_id:
+            logger.warning(
+                "Ignoring WhatsApp message without sender ID."
+            )
+            return
+
+        if message_type != "text":
+            logger.info(
+                "Unsupported WhatsApp message type: "
+                "sender=%s type=%s",
+                sender_id,
+                message_type,
+            )
+
+            await self.send_text_message(
+                sender_id,
+                "Currently, I can process text messages. "
+                "Please send your request as text.",
+            )
+            return
+
+        message_text = (
+            message.get("text", {}).get("body", "")
+        ).strip()
+
+        if not message_text:
+            logger.warning(
+                "Ignoring empty WhatsApp message: sender=%s",
+                sender_id,
+            )
+            return
+
+        logger.info(
+            "Processing WhatsApp message: "
+            "sender=%s message_id=%s",
+            sender_id,
+            message_id,
+        )
+
+        # Mark the incoming message as read.
+        if message_id:
+            try:
+                await self.mark_as_read(message_id)
+            except Exception:
+                logger.exception(
+                    "Could not mark WhatsApp message as read: "
+                    "message_id=%s",
+                    message_id,
+                )
+
+        try:
+            # 1. Invoke Robin.
+            response = await self.run_agent(
+                agent_app=agent_app,
+                sender_id=sender_id,
+                message_text=message_text,
+            )
+
+            # 2. Send the agent response to WhatsApp.
+            await self.send_text_message(
+                to=sender_id,
+                message=response,
+            )
+
+            logger.info(
+                "Agent response successfully submitted to WhatsApp: "
+                "sender=%s",
+                sender_id,
+            )
+
+        except Exception:
+            logger.exception(
+                "WhatsApp agent processing failed: sender=%s",
+                sender_id,
+            )
+
+            try:
+                await self.send_text_message(
+                    sender_id,
+                    "Sorry, I encountered an error while "
+                    "processing your request. Please try again.",
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to send WhatsApp error response: "
+                    "sender=%s",
+                    sender_id,
+                )
+
 
     def __init__(self):
         self.client: httpx.AsyncClient | None = None
@@ -17,7 +228,7 @@ class WhatsAppService:
     def base_url(self) -> str:
         return (
             f"https://graph.facebook.com/"
-            f"{settings.whatsapp_api_version}"
+            f"v27.0"
         )
 
     @property
@@ -402,29 +613,47 @@ class WhatsAppService:
     # ---------------------------
 
     async def handle_received_message(
-        self,
-        message: dict,
-    ) -> None:
+    self,
+    message: dict,
+    agent_app,
+) -> None:
 
         message_type = message.get("type")
+        sender_id = message.get("from")
+        message_id = message.get("id")
 
-        if message_type == "text":
-            text = message.get("text", {}).get("body")
-
-            logger.info(
-                "Received text message: sender=%s message_id=%s",
-                message.get("from"),
-                message.get("id"),
-            )
-
-            logger.debug("Message body: %s", text)
-
-        else:
+        if message_type != "text":
             logger.info(
                 "Received WhatsApp message: type=%s id=%s",
                 message_type,
-                message.get("id"),
+                message_id,
             )
+            return
+
+        text = message.get("text", {}).get("body", "").strip()
+
+        logger.info(
+            "Received text message: sender=%s message_id=%s",
+            sender_id,
+            message_id,
+        )
+
+        if not sender_id or not text:
+            logger.warning("Ignoring invalid WhatsApp message.")
+            return
+
+        await self.mark_as_read(message_id)
+
+        response = await self.run_agent(
+            agent_app=agent_app,
+            sender_id=sender_id,
+            message_text=text,
+        )
+
+        await self.send_text_message(
+            to=sender_id,
+            message=response,
+        )
 
     async def handle_message_status(
         self,

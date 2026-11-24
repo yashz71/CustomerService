@@ -15,7 +15,16 @@ class Settings(BaseSettings):
     livekit_api_key: str
     livekit_api_secret: str
     livekit_agent_name: str = "robin"
-
+    NEON_DATABASE_URL: str
+    LANGSMITH_TRACING: str 
+    LANGSMITH_ENDPOINT: str
+    LANGSMITH_API_KEY: str
+    LANGSMITH_AGENT_ID: str
+    LANGSMITH_AGENT_ENVIRONMENT: str
+    AZURE_OPENAI_ENDPOINT: str
+    AZURE_OPENAI_API_KEY: str
+    AZURE_OPENAI_TRANSCRIPTION_MODEL: str
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

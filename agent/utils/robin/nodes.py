@@ -1,58 +1,96 @@
 from langgraph.graph import END
-from utils.state import AgentState
-from utils.robin.prompt import robin_agent_prompt
+from   utils.state import AgentState
+from   utils.robin.prompt import robin_agent_prompt
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import AIMessage
-import startup.mcp_robin as mcp
-from langchain_core.messages import HumanMessage
+import   startup.mcp_robin as mcp
+from langchain_core.messages import AIMessage, HumanMessage
 
 
-def extract_image_from_messages(messages):
-    # Only inspect the latest human message.
-    for message in reversed(messages):
+def attach_frame_to_latest_message(messages, image_url):
+    """Attach the current camera frame to the latest human message."""
+    if not image_url:
+        return messages
+
+    messages = list(messages)
+
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+
         if not isinstance(message, HumanMessage):
             continue
 
         content = message.content
 
+        # Do not add a duplicate image if this message already has one.
         if isinstance(content, list):
-            for block in content:
-                if block.get("type") == "image_url":
-                    image_url = block.get("image_url", {}).get("url")
+            has_image = any(
+                isinstance(block, dict)
+                and block.get("type") == "image_url"
+                for block in content
+            )
 
-                    if image_url and image_url.startswith("data:"):
-                        return image_url
+            if has_image:
+                return messages
 
-        # Don't reuse an image from an older message.
-        return None
+            updated_content = [
+                *content,
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url},
+                },
+            ]
+        else:
+            updated_content = [
+                {"type": "text", "text": str(content)},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": image_url},
+                },
+            ]
 
-    return None
+        messages[index] = message.model_copy(
+            update={"content": updated_content}
+        )
+        break
 
-# 3. Define the Node Functions
-def call_model(state: AgentState):
+    return messages
+
+
+def call_model(state, vision):
+    image_url = vision.latest_frame_url
+
+    # Give the VLM the latest camera frame alongside the user's message.
+    messages = attach_frame_to_latest_message(
+        state["messages"],
+        image_url,
+    )
+
     agent_chain = robin_agent_prompt | mcp.robin_model_with_tools
 
     response = agent_chain.invoke({
-        "messages": state["messages"],
-        "summary": state.get("summary", "No previous summary available."),
+        "messages": messages,
+        "summary": state.get(
+            "summary",
+            "No previous summary available.",
+        ),
     })
 
     updates = {"messages": [response]}
 
-    # Only write the final answer once the model is done calling tools
     if not (isinstance(response, AIMessage) and response.tool_calls):
         updates["robin_answer"] = response.content
 
     return updates
 
 
-def prepare_tools(state: AgentState):
+def prepare_tools(state, vision):
     last_message = state["messages"][-1]
 
     if not isinstance(last_message, AIMessage):
         return {}
 
-    image_url = extract_image_from_messages(state["messages"])
+    image_url = vision.latest_frame_url
 
     if not image_url:
         return {}
@@ -73,7 +111,6 @@ def prepare_tools(state: AgentState):
                 **tool_call,
                 "args": args,
             })
-
             modified = True
         else:
             updated_tool_calls.append(tool_call)
@@ -85,16 +122,11 @@ def prepare_tools(state: AgentState):
         update={"tool_calls": updated_tool_calls}
     )
 
-    print("PREPARED TOOL CALLS:", updated_message.tool_calls)
-
     return {"messages": [updated_message]}
 
 
-
-def should_continue(state: AgentState):
+def should_continue(state):
     last_message = state["messages"][-1]
 
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "prepare_tools"
-
-    return END

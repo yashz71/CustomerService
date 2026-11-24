@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, START, END
+
 from utils.state import AgentState
 from utils.robin.nodes import (
     call_model,
@@ -10,7 +11,7 @@ from utils.robin.nodes import (
 # =========================================================
 # GRAPH INITIALIZATION
 # =========================================================
-def build_robin(tool_node):
+def build_robin(tool_node, vision):
 
     robin = StateGraph(AgentState)
 
@@ -18,7 +19,7 @@ def build_robin(tool_node):
     # NODES
     # =========================================================
 
-    robin.add_node("agent", call_model)
+    robin.add_node("agent", call_model(vision))
     print(f"tool_node in subgraph: {tool_node}")
     robin.add_node("tools", tool_node)
     robin.add_node("prepare_tools", prepare_tools)
@@ -47,4 +48,4 @@ def build_robin(tool_node):
     robin.add_edge("prepare_tools", "tools")
     robin.add_edge("tools", "agent")
 
-    return robin
+    return robin.compile()

@@ -311,25 +311,38 @@ async def handle_calls_change(value: dict) -> None:
 
     for error in value.get("errors", []):
         logger.error("WhatsApp Calling error: %s", error)
+async def handle_messages_change(
+    value: dict,
+    agent_app,
+) -> None:
 
-
-async def handle_messages_change(value: dict) -> None:
+    # Handle incoming messages
     for message in value.get("messages", []):
         msg_id = message.get("id")
+
         if msg_id and seen_events.seen(f"msg:{msg_id}"):
             logger.info("Duplicate message ignored: %s", msg_id)
             continue
-        await _safe(whatsapp_service.handle_received_message(message), "message")
 
+        await _safe(
+            whatsapp_service.handle_received_message(
+                message=message,
+                agent_app=agent_app,
+            ),
+            "message",
+        )
+
+    # Handle delivery/read status updates
     for status in value.get("statuses", []):
         key = f"status:{status.get('id')}:{status.get('status')}"
+
         if seen_events.seen(key):
             continue
-        await _safe(whatsapp_service.handle_message_status(status), "message status")
 
-    for error in value.get("errors", []):
-        logger.error("WhatsApp messages error: %s", error)
-
+        await _safe(
+            whatsapp_service.handle_message_status(status),
+            "status",
+        )
 
 async def _safe(coro: Awaitable[object], what: str) -> None:
     """Isolate failures so one bad item doesn't drop the rest of the batch."""
@@ -338,8 +351,11 @@ async def _safe(coro: Awaitable[object], what: str) -> None:
     except Exception:
         logger.exception("Failed to process %s", what)
 
+async def process_webhook(
+    payload: dict,
+    agent_app,
+) -> None:
 
-async def process_webhook(payload: dict) -> None:
     if payload.get("object") != "whatsapp_business_account":
         return
 
@@ -349,21 +365,38 @@ async def process_webhook(payload: dict) -> None:
             value = change.get("value", {})
 
             if field == "calls":
-                await _safe(handle_calls_change(value), "calls change")
+                await _safe(
+                    handle_calls_change(value),
+                    "calls change",
+                )
+
             elif field == "messages":
-                await _safe(handle_messages_change(value), "messages change")
+                await _safe(
+                    handle_messages_change(
+                        value=value,
+                        agent_app=agent_app,
+                    ),
+                    "messages change",
+                )
+
             else:
-                logger.debug("Ignoring webhook field: %s", field)
-
-
+                logger.debug(
+                    "Ignoring webhook field: %s",
+                    field,
+                )
 @webhook_router.post("")
-async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
+async def receive_webhook(
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
     """Receive webhook events from Meta and acknowledge immediately."""
 
-    # Raw bytes are needed for signature verification.
     body = await request.body()
 
-    if not verify_signature(body, request.headers.get("X-Hub-Signature-256")):
+    if not verify_signature(
+        body,
+        request.headers.get("X-Hub-Signature-256"),
+    ):
         raise HTTPException(401, "Invalid webhook signature")
 
     try:
@@ -371,7 +404,14 @@ async def receive_webhook(request: Request, background_tasks: BackgroundTasks):
     except json.JSONDecodeError:
         raise HTTPException(400, "Invalid JSON payload")
 
-    # Reply 200 right away; Meta retries on slow responses.
-    background_tasks.add_task(process_webhook, payload)
+    # Retrieve the already initialized LangGraph application.
+    agent_app = request.app.state.agent_app
+
+    # Process webhook asynchronously after acknowledging Meta.
+    background_tasks.add_task(
+        process_webhook,
+        payload,
+        agent_app,
+    )
 
     return {"status": "ok"}
