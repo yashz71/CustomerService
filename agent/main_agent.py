@@ -52,7 +52,13 @@ async def robin_voice_agent(ctx: JobContext):
     nami = build_nami(vision)
 
     robin = build_robin(mcp_robin["tool_node"], vision)
-    workflow  = build_workflow(robin, nami)
+    
+    workflow = build_workflow(
+        robin=robin,
+        nami=nami,
+        vision=vision,
+    )
+
     graph = workflow.compile()
 
     session = AgentSession(

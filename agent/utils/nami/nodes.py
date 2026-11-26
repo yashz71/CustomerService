@@ -65,9 +65,16 @@ def attach_frame_to_latest_message(messages, image_url):
 
     return messages
 
+async def call_model(state: AgentState, vision):
 
-def call_model(state: AgentState, vision):
-    """Invoke Nami with the latest camera frame."""
+    print("\n========== NAMI MODEL INVOCATION ==========")
+
+    for message in state["messages"][-3:]:
+        print(
+            "TYPE:", type(message).__name__,
+            "\nCONTENT:", str(message.content)[:1500],
+            "\nTOOL CALLS:", getattr(message, "tool_calls", None),
+        )
 
     image_url = vision.latest_frame_url
 
@@ -78,7 +85,7 @@ def call_model(state: AgentState, vision):
 
     agent_chain = nami_agent_prompt | model_with_tools
 
-    response = agent_chain.invoke({
+    response = await agent_chain.ainvoke({
         "messages": messages,
         "instruction": state.get("supervisor_instruction"),
         "summary": state.get(
@@ -87,17 +94,16 @@ def call_model(state: AgentState, vision):
         ),
     })
 
+    print("\n========== NAMI MODEL RESPONSE ==========")
+    print("CONTENT:", response.content)
+    print("TOOL CALLS:", response.tool_calls)
+
     updates = {"messages": [response]}
 
-    # Only save the final response when no tool call is requested.
-    if not (
-        isinstance(response, AIMessage)
-        and response.tool_calls
-    ):
-        updates["nami"] = response.content
+    if not response.tool_calls:
+        updates["nami_answer"] = response.content
 
     return updates
-
 
 def should_continue(state: AgentState):
     """Determine whether Nami should execute tools or finish."""

@@ -1,27 +1,39 @@
-from langgraph.graph import StateGraph, END, START
-from agent.utils.nodes import supervisor_router, route_supervisor
-from agent.utils.state import AgentState
+
+from langgraph.graph import StateGraph, START, END
+
+from utils.nodes import build_supervisor_nodes
+from utils.state import AgentState
 
 
-def build_workflow(robin, nami):
+def build_workflow(robin, nami, vision):
+
+    supervisor, tools = build_supervisor_nodes(
+        robin,
+        nami,
+        vision,
+    )
+
     workflow = StateGraph(AgentState)
 
-    workflow.add_node("supervisor", supervisor_router)
-    workflow.add_node("robin", robin)
-    workflow.add_node("nami", nami)
+    workflow.add_node("supervisor", supervisor)
+    workflow.add_node("tools", tools)
 
     workflow.add_edge(START, "supervisor")
 
+    def should_continue(state: AgentState):
+
+        last_message = state["messages"][-1]
+
+        if last_message.tool_calls:
+            return "tools"
+
+        return END
+
     workflow.add_conditional_edges(
         "supervisor",
-        route_supervisor,
-        {
-            "robin": "robin",
-            "nami": "nami",
-            END: END,
-        },
+        should_continue,
     )
 
-    workflow.add_edge("robin", "supervisor")
-    workflow.add_edge("nami", "supervisor")
+    workflow.add_edge("tools", "supervisor")
+
     return workflow

@@ -2,8 +2,8 @@
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import ToolNode
-from telegramegateway.agent.utils.models.llm import model
-from telegramegateway.agent.utils.config import mcp_server_url_robin
+from utils.models.llm import model
+from utils.config import mcp_server_url_robin
 mcp_client = MultiServerMCPClient(
     {
         "mcp_server": {

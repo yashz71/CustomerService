@@ -57,7 +57,7 @@ def attach_frame_to_latest_message(messages, image_url):
     return messages
 
 
-def call_model(state, vision):
+async def call_model(state, vision):
     image_url = vision.latest_frame_url
 
     # Give the VLM the latest camera frame alongside the user's message.
@@ -68,14 +68,14 @@ def call_model(state, vision):
 
     agent_chain = robin_agent_prompt | mcp.robin_model_with_tools
 
-    response = agent_chain.invoke({
-        "messages": messages,
-        "summary": state.get(
-            "summary",
-            "No previous summary available.",
-        ),
-    })
-
+    response = await agent_chain.ainvoke({
+    "messages": messages,
+    "instruction": state.get("supervisor_instruction"),
+    "summary": state.get(
+        "summary",
+        "No previous summary available.",
+    ),
+})
     updates = {"messages": [response]}
 
     if not (isinstance(response, AIMessage) and response.tool_calls):
@@ -126,7 +126,10 @@ def prepare_tools(state, vision):
 
 
 def should_continue(state):
+
     last_message = state["messages"][-1]
 
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "prepare_tools"
+
+    return END

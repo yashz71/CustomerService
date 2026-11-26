@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, START, END
+from functools import partial
 
 from utils.state import AgentState
 from utils.robin.nodes import (
@@ -19,7 +20,8 @@ def build_robin(tool_node, vision):
     # NODES
     # =========================================================
 
-    robin.add_node("agent", call_model(vision))
+    robin.add_node("agent",      partial(call_model, vision=vision),
+)
     print(f"tool_node in subgraph: {tool_node}")
     robin.add_node("tools", tool_node)
     robin.add_node("prepare_tools", prepare_tools)
